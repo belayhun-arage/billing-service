@@ -19,11 +19,20 @@ func NewPaymentRepository(db *pgxpool.Pool) *PaymentRepository {
 func (r *PaymentRepository) Create(ctx context.Context, tx pgx.Tx, payment *domain.Payment) error {
 
 	query := `
-	INSERT INTO payments (id, invoice_id, amount, status)
-	VALUES ($1,$2,$3,$4)
+	INSERT INTO payments (id, invoice_id, customer_id, amount, status, provider_payment_id, created_at, updated_at)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 	`
 
-	args := []any{payment.ID, payment.InvoiceID, payment.Amount, payment.Status}
+	args := []any{
+		payment.ID,
+		payment.InvoiceID,
+		payment.CustomerID,
+		payment.Amount,
+		payment.Status,
+		payment.ProviderPaymentID,
+		payment.CreatedAt,
+		payment.UpdatedAt,
+	}
 
 	var err error
 	if tx != nil {

@@ -3,16 +3,18 @@ package service
 import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/belayhun-arage/billing-service/internal/domain"
 	"github.com/belayhun-arage/billing-service/internal/repository/postgres"
 )
 
 type BillingService struct {
-	db             *pgxpool.Pool
-	invoiceRepo    *postgres.InvoiceRepository
-	paymentRepo    *postgres.PaymentRepository
-	ledgerRepo     *postgres.LedgerRepository
-	outboxRepo     *postgres.OutboxRepository
+	db              *pgxpool.Pool
+	invoiceRepo     *postgres.InvoiceRepository
+	paymentRepo     *postgres.PaymentRepository
+	ledgerRepo      *postgres.LedgerRepository
+	outboxRepo      *postgres.OutboxRepository
 	idempotencyRepo *postgres.IdempotencyRepository
+	processor       domain.PaymentProcessor
 }
 
 func NewBillingService(
@@ -22,13 +24,15 @@ func NewBillingService(
 	ledgerRepo *postgres.LedgerRepository,
 	outboxRepo *postgres.OutboxRepository,
 	idempotencyRepo *postgres.IdempotencyRepository,
+	processor domain.PaymentProcessor,
 ) *BillingService {
 	return &BillingService{
-		db:             db,
-		invoiceRepo:    invoiceRepo,
-		paymentRepo:    paymentRepo,
-		ledgerRepo:     ledgerRepo,
-		outboxRepo:     outboxRepo,
+		db:              db,
+		invoiceRepo:     invoiceRepo,
+		paymentRepo:     paymentRepo,
+		ledgerRepo:      ledgerRepo,
+		outboxRepo:      outboxRepo,
 		idempotencyRepo: idempotencyRepo,
+		processor:       processor,
 	}
 }
