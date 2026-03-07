@@ -13,6 +13,10 @@ type OutboxRepository struct {
 	db *pgxpool.Pool
 }
 
+func NewOutboxRepository(db *pgxpool.Pool) *OutboxRepository {
+	return &OutboxRepository{db: db}
+}
+
 func (r *OutboxRepository) Insert(
 	ctx context.Context,
 	tx pgx.Tx,
