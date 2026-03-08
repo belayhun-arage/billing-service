@@ -2,11 +2,14 @@ package main
 
 import (
 	"context"
-	"log"
+	"errors"
 	"log/slog"
 	"net"
+	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -19,8 +22,10 @@ import (
 	grpcdelivery "github.com/belayhun-arage/billing-service/internal/delivery/grpc"
 	httpdelivery "github.com/belayhun-arage/billing-service/internal/delivery/http"
 	"github.com/belayhun-arage/billing-service/internal/email"
+	"github.com/belayhun-arage/billing-service/internal/messaging"
 	"github.com/belayhun-arage/billing-service/internal/repository/postgres"
 	"github.com/belayhun-arage/billing-service/internal/usecase"
+	"github.com/belayhun-arage/billing-service/internal/worker"
 	"github.com/belayhun-arage/billing-service/pkg/auth"
 	"github.com/belayhun-arage/billing-service/pkg/db"
 	"github.com/belayhun-arage/billing-service/pkg/db/middleware"
@@ -124,6 +129,22 @@ func main() {
 		protected.POST("/payments", paymentHandler.ProcessPayment)
 	}
 
+	// --- Shutdown context (cancelled on SIGINT / SIGTERM) ---
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	// --- Outbox worker ---
+	var publisher messaging.EventPublisher
+	if cfg.KafkaBrokers != "" {
+		publisher = messaging.NewKafkaPublisher([]string{cfg.KafkaBrokers}, cfg.KafkaTopic)
+		logger.Info("Kafka publisher configured", "brokers", cfg.KafkaBrokers, "topic", cfg.KafkaTopic)
+	} else {
+		publisher = messaging.NewNoOpPublisher(logger)
+		logger.Info("Kafka not configured — outbox events will be dropped")
+	}
+	outboxWorker := worker.NewOutboxWorker(pool, publisher)
+	go outboxWorker.Start(ctx)
+
 	// --- gRPC server ---
 	grpcPaymentHandler := grpcdelivery.NewPaymentHandler(processPaymentUC, logger)
 
@@ -141,19 +162,47 @@ func main() {
 		os.Exit(1)
 	}
 
+	// --- HTTP server ---
+	httpServer := &http.Server{
+		Addr:    ":" + cfg.HTTPPort,
+		Handler: r,
+	}
+
 	errCh := make(chan error, 2)
 
 	go func() {
 		logger.Info("gRPC server listening", "addr", ":"+cfg.GRPCPort)
-		errCh <- grpcServer.Serve(lis)
+		if err := grpcServer.Serve(lis); err != nil {
+			errCh <- err
+		}
 	}()
 
 	go func() {
 		logger.Info("HTTP server listening", "addr", ":"+cfg.HTTPPort)
-		errCh <- r.Run(":" + cfg.HTTPPort)
+		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			errCh <- err
+		}
 	}()
 
-	log.Fatal(<-errCh)
+	// --- Block until signal or fatal error ---
+	select {
+	case err := <-errCh:
+		logger.Error("server error", "error", err)
+	case <-ctx.Done():
+		logger.Info("shutdown signal received")
+	}
+
+	// --- Graceful shutdown (10 s drain window) ---
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := httpServer.Shutdown(shutdownCtx); err != nil {
+		logger.Error("HTTP server shutdown error", "error", err)
+	}
+	grpcServer.GracefulStop()
+	pool.Close()
+
+	logger.Info("shutdown complete")
 }
 
 // findEnvFile walks up from the current working directory until it finds a

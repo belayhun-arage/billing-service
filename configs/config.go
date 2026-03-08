@@ -26,6 +26,10 @@ type Config struct {
 	// Rate limiting — requests per second per API key and burst size.
 	RateLimitRPS   float64
 	RateLimitBurst int
+
+	// Kafka — optional; if empty the outbox worker uses a no-op publisher.
+	KafkaBrokers string
+	KafkaTopic   string
 }
 
 // Load reads environment variables, applies defaults for optional fields,
@@ -50,8 +54,11 @@ func Load() (*Config, error) {
 		SMTPPass: os.Getenv("SMTP_PASS"),
 		SMTPFrom: os.Getenv("SMTP_FROM"),
 
-		RateLimitRPS:   getEnvFloat("RATE_LIMIT_RPS", 10),   // 10 req/s = 600/min
+		RateLimitRPS:   getEnvFloat("RATE_LIMIT_RPS", 10),
 		RateLimitBurst: getEnvInt("RATE_LIMIT_BURST", 20),
+
+		KafkaBrokers: os.Getenv("KAFKA_BROKERS"),
+		KafkaTopic:   getEnvOrDefault("KAFKA_TOPIC", "billing-events"),
 	}
 
 	rawOrigins := os.Getenv("ALLOWED_ORIGINS")
