@@ -3,6 +3,8 @@ package grpc_test
 import (
 	"context"
 	"errors"
+	"io"
+	"log/slog"
 	"testing"
 
 	"google.golang.org/grpc/codes"
@@ -12,6 +14,9 @@ import (
 	grpcdelivery "github.com/belayhun-arage/billing-service/internal/delivery/grpc"
 	"github.com/belayhun-arage/billing-service/test/mocks"
 )
+
+// discardLogger silences log output during tests.
+var discardLogger = slog.New(slog.NewTextHandler(io.Discard, nil))
 
 func TestProcessPayment(t *testing.T) {
 	tests := []struct {
@@ -61,7 +66,7 @@ func TestProcessPayment(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			mock := &mocks.MockPaymentExecutor{Err: tc.mockErr}
-			handler := grpcdelivery.NewPaymentHandler(mock)
+			handler := grpcdelivery.NewPaymentHandler(mock, discardLogger)
 
 			resp, err := handler.ProcessPayment(context.Background(), tc.req)
 

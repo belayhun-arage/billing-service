@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"log/slog"
 	"net"
 	"os"
 
@@ -20,6 +21,8 @@ import (
 )
 
 func main() {
+
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
 	pool, err := db.NewPostgresPool()
 	if err != nil {
@@ -48,9 +51,9 @@ func main() {
 	)
 
 	// --- HTTP server ---
-	customerHandler := httpdelivery.NewCustomerHandler(createCustomerUC)
-	invoiceHandler := httpdelivery.NewInvoiceHandler(createInvoiceUC)
-	paymentHandler := httpdelivery.NewPaymentHandler(processPaymentUC)
+	customerHandler := httpdelivery.NewCustomerHandler(createCustomerUC, logger)
+	invoiceHandler := httpdelivery.NewInvoiceHandler(createInvoiceUC, logger)
+	paymentHandler := httpdelivery.NewPaymentHandler(processPaymentUC, logger)
 
 	r := gin.Default()
 	r.Use(middleware.IdempotencyMiddleware(idempotencyRepo))
@@ -59,7 +62,7 @@ func main() {
 	r.POST("/payments", paymentHandler.ProcessPayment)
 
 	// --- gRPC server ---
-	grpcPaymentHandler := grpcdelivery.NewPaymentHandler(processPaymentUC)
+	grpcPaymentHandler := grpcdelivery.NewPaymentHandler(processPaymentUC, logger)
 
 	grpcServer := grpc.NewServer()
 	billingv1.RegisterBillingServiceServer(grpcServer, grpcPaymentHandler)
@@ -73,12 +76,12 @@ func main() {
 	errCh := make(chan error, 2)
 
 	go func() {
-		log.Println("gRPC server listening on :9090")
+		logger.Info("gRPC server listening", "addr", ":9090")
 		errCh <- grpcServer.Serve(lis)
 	}()
 
 	go func() {
-		log.Println("HTTP server listening on :8080")
+		logger.Info("HTTP server listening", "addr", ":8080")
 		errCh <- r.Run(":8080")
 	}()
 

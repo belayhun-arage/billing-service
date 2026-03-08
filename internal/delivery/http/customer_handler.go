@@ -1,6 +1,7 @@
 package http
 
 import (
+	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -10,10 +11,11 @@ import (
 
 type CustomerHandler struct {
 	usecase *usecase.CreateCustomerUsecase
+	log     *slog.Logger
 }
 
-func NewCustomerHandler(u *usecase.CreateCustomerUsecase) *CustomerHandler {
-	return &CustomerHandler{usecase: u}
+func NewCustomerHandler(u *usecase.CreateCustomerUsecase, log *slog.Logger) *CustomerHandler {
+	return &CustomerHandler{usecase: u, log: log}
 }
 
 type CreateCustomerRequest struct {
@@ -28,11 +30,15 @@ func (h *CustomerHandler) CreateCustomer(c *gin.Context) {
 		return
 	}
 
+	h.log.Info("creating customer", "email", req.Email)
+
 	customer, err := h.usecase.Execute(c.Request.Context(), req.Name, req.Email)
 	if err != nil {
+		h.log.Error("create customer failed", "email", req.Email, "error", err)
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
 		return
 	}
 
+	h.log.Info("customer created", "customer_id", customer.ID)
 	c.JSON(http.StatusCreated, customer)
 }
