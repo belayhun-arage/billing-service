@@ -3,9 +3,6 @@ package usecase
 import (
 	"context"
 	"errors"
-	"time"
-
-	"github.com/google/uuid"
 
 	"github.com/belayhun-arage/billing-service/internal/domain"
 )
@@ -25,8 +22,9 @@ func NewCreateCustomerUsecase(r CustomerRepository) *CreateCustomerUsecase {
 }
 
 func (u *CreateCustomerUsecase) Execute(ctx context.Context, name, email string) (*domain.Customer, error) {
-	if name == "" || email == "" {
-		return nil, errors.New("name and email are required")
+	customer, err := domain.NewCustomer(name, email)
+	if err != nil {
+		return nil, err
 	}
 
 	exists, err := u.repo.ExistsByEmail(ctx, email)
@@ -35,13 +33,6 @@ func (u *CreateCustomerUsecase) Execute(ctx context.Context, name, email string)
 	}
 	if exists {
 		return nil, errors.New("a customer with this email already exists")
-	}
-
-	customer := &domain.Customer{
-		ID:        uuid.New().String(),
-		Name:      name,
-		Email:     email,
-		CreatedAt: time.Now(),
 	}
 
 	if err := u.repo.Create(ctx, customer); err != nil {

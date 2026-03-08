@@ -2,8 +2,10 @@ package domain
 
 import (
 	"context"
+	"errors"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -16,6 +18,30 @@ type Payment struct {
 	ProviderPaymentID string // Stripe PaymentIntent ID
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
+}
+
+// NewPayment validates inputs and returns a Payment ready to persist.
+func NewPayment(invoiceID, customerID, providerPaymentID string, amount int64) (*Payment, error) {
+	if invoiceID == "" {
+		return nil, errors.New("invoice_id is required")
+	}
+	if customerID == "" {
+		return nil, errors.New("customer_id is required")
+	}
+	if amount <= 0 {
+		return nil, errors.New("payment amount must be greater than zero")
+	}
+	now := time.Now()
+	return &Payment{
+		ID:                uuid.New().String(),
+		InvoiceID:         invoiceID,
+		CustomerID:        customerID,
+		Amount:            amount,
+		Status:            "completed",
+		ProviderPaymentID: providerPaymentID,
+		CreatedAt:         now,
+		UpdatedAt:         now,
+	}, nil
 }
 
 // ChargeResult is returned by PaymentProcessor.Charge.

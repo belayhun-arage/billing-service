@@ -1,6 +1,6 @@
 # Billing Service
 
-A billing backend API built in Go using Clean Architecture principles.
+A production-grade billing backend API built in Go using Clean Architecture principles.
 
 ## Features
 

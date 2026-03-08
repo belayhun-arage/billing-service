@@ -14,6 +14,7 @@ import (
 	"github.com/belayhun-arage/billing-service/pkg/db"
 )
 
+
 // PaymentResult holds the IDs created during payment processing.
 type PaymentResult struct {
 	PaymentID string
@@ -79,27 +80,18 @@ func (u *ProcessPaymentUsecase) Execute(
 	// 3. Atomically record all side-effects in the database.
 	err = db.WithTransaction(ctx, u.pool, func(tx pgx.Tx) error {
 
-		invoice := &domain.Invoice{
-			ID:         uuid.New().String(),
-			CustomerID: customerID,
-			Amount:     amount,
-			Status:     "paid",
-			CreatedAt:  time.Now(),
-			UpdatedAt:  time.Now(),
+		invoice, err := domain.NewInvoice(customerID, amount)
+		if err != nil {
+			return err
 		}
+		invoice.Status = "paid"
 		if err := u.invoiceRepo.Create(ctx, tx, invoice); err != nil {
 			return err
 		}
 
-		payment := &domain.Payment{
-			ID:                uuid.New().String(),
-			InvoiceID:         invoice.ID,
-			CustomerID:        customerID,
-			Amount:            amount,
-			Status:            "completed",
-			ProviderPaymentID: charge.ProviderPaymentID,
-			CreatedAt:         time.Now(),
-			UpdatedAt:         time.Now(),
+		payment, err := domain.NewPayment(invoice.ID, customerID, charge.ProviderPaymentID, amount)
+		if err != nil {
+			return err
 		}
 		if err := u.paymentRepo.Create(ctx, tx, payment); err != nil {
 			return err

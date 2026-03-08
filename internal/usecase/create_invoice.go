@@ -2,9 +2,7 @@ package usecase
 
 import (
 	"context"
-	"time"
 
-	"github.com/google/uuid"
 	"github.com/belayhun-arage/billing-service/internal/domain"
 )
 
@@ -22,16 +20,12 @@ func (u *CreateInvoiceUsecase) Execute(
 	amount int64,
 ) (*domain.Invoice, error) {
 
-	invoice := &domain.Invoice{
-		ID:         uuid.New().String(),
-		CustomerID: customerID,
-		Amount:     amount,
-		Status:     "pending",
-		CreatedAt:  time.Now(),
+	invoice, err := domain.NewInvoice(customerID, amount)
+	if err != nil {
+		return nil, err
 	}
 
-	err := u.repo.Create(ctx, nil, invoice)
-	if err != nil {
+	if err := u.repo.Create(ctx, nil, invoice); err != nil {
 		return nil, err
 	}
 
