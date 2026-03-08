@@ -1,21 +1,29 @@
 package main
 
 import (
+	"context"
 	"log"
 	"log/slog"
 	"net"
 	"os"
+	"path/filepath"
+	"time"
+
+	"github.com/gin-contrib/cors"
+	"github.com/joho/godotenv"
 
 	"google.golang.org/grpc"
 
+	"github.com/belayhun-arage/billing-service/configs"
 	billingv1 "github.com/belayhun-arage/billing-service/gen/billing/v1"
 	grpcdelivery "github.com/belayhun-arage/billing-service/internal/delivery/grpc"
-	grpcpkg "github.com/belayhun-arage/billing-service/pkg/grpc"
 	httpdelivery "github.com/belayhun-arage/billing-service/internal/delivery/http"
+	"github.com/belayhun-arage/billing-service/internal/email"
 	"github.com/belayhun-arage/billing-service/internal/repository/postgres"
 	"github.com/belayhun-arage/billing-service/internal/usecase"
 	"github.com/belayhun-arage/billing-service/pkg/db"
 	"github.com/belayhun-arage/billing-service/pkg/db/middleware"
+	grpcpkg "github.com/belayhun-arage/billing-service/pkg/grpc"
 	stripe "github.com/belayhun-arage/billing-service/external/stripe"
 
 	"github.com/gin-gonic/gin"
@@ -25,12 +33,29 @@ func main() {
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
-	pool, err := db.NewPostgresPool()
-	if err != nil {
-		panic(err)
+	if err := godotenv.Overload(findEnvFile()); err != nil {
+		logger.Info(".env file not found, relying on environment variables")
 	}
 
-	stripeClient := stripe.NewStripeClient(os.Getenv("STRIPE_SECRET_KEY"))
+	cfg, err := configs.Load()
+	if err != nil {
+		logger.Error("invalid configuration", "error", err)
+		os.Exit(1)
+	}
+
+	pool, err := db.NewPostgresPool(cfg.DatabaseURL)
+	if err != nil {
+		logger.Error("failed to connect to database", "error", err)
+		os.Exit(1)
+	}
+
+	if err := pool.Ping(context.Background()); err != nil {
+		logger.Error("database ping failed", "error", err)
+		os.Exit(1)
+	}
+	logger.Info("database connection established")
+
+	stripeClient := stripe.NewStripeClient(cfg.StripeKey)
 
 	customerRepo := postgres.NewCustomerRepository(pool)
 	invoiceRepo := postgres.NewInvoiceRepository(pool)
@@ -39,8 +64,19 @@ func main() {
 	outboxRepo := postgres.NewOutboxRepository(pool)
 	idempotencyRepo := postgres.NewIdempotencyRepository(pool)
 
+	// --- Email sender ---
+	var emailSender email.Sender
+	if cfg.SMTPHost != "" {
+		emailSender = email.NewSMTPSender(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUser, cfg.SMTPPass, cfg.SMTPFrom)
+		logger.Info("SMTP configured", "host", cfg.SMTPHost, "port", cfg.SMTPPort)
+	} else {
+		emailSender = &email.NoOpSender{}
+		logger.Info("SMTP not configured — email sending disabled")
+	}
+
 	createCustomerUC := usecase.NewCreateCustomerUsecase(customerRepo)
 	createInvoiceUC := usecase.NewCreateInvoiceUsecase(invoiceRepo)
+	sendInvoiceUC := usecase.NewSendInvoiceUsecase(invoiceRepo, customerRepo, emailSender)
 	processPaymentUC := usecase.NewProcessPaymentUsecase(
 		pool,
 		customerRepo,
@@ -53,13 +89,22 @@ func main() {
 
 	// --- HTTP server ---
 	customerHandler := httpdelivery.NewCustomerHandler(createCustomerUC, logger)
-	invoiceHandler := httpdelivery.NewInvoiceHandler(createInvoiceUC, logger)
+	invoiceHandler := httpdelivery.NewInvoiceHandler(createInvoiceUC, sendInvoiceUC, logger)
 	paymentHandler := httpdelivery.NewPaymentHandler(processPaymentUC, logger)
 
 	r := gin.Default()
+	r.Use(cors.New(cors.Config{
+		AllowOrigins:     cfg.AllowedOrigins,
+		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "Idempotency-Key"},
+		AllowCredentials: true,
+		MaxAge:           12 * time.Hour,
+	}))
 	r.Use(middleware.IdempotencyMiddleware(idempotencyRepo))
 	r.POST("/customers", customerHandler.CreateCustomer)
 	r.POST("/invoices", invoiceHandler.CreateInvoice)
+	r.GET("/invoices/:id/pdf", invoiceHandler.DownloadPDF)
+	r.POST("/invoices/:id/send", invoiceHandler.SendByEmail)
 	r.POST("/payments", paymentHandler.ProcessPayment)
 
 	// --- gRPC server ---
@@ -73,23 +118,41 @@ func main() {
 	)
 	billingv1.RegisterBillingServiceServer(grpcServer, grpcPaymentHandler)
 
-	lis, err := net.Listen("tcp", ":9090")
+	lis, err := net.Listen("tcp", ":"+cfg.GRPCPort)
 	if err != nil {
-		panic(err)
+		logger.Error("failed to start gRPC listener", "error", err)
+		os.Exit(1)
 	}
 
-	// Run both servers concurrently. If either fails, log and exit.
 	errCh := make(chan error, 2)
 
 	go func() {
-		logger.Info("gRPC server listening", "addr", ":9090")
+		logger.Info("gRPC server listening", "addr", ":"+cfg.GRPCPort)
 		errCh <- grpcServer.Serve(lis)
 	}()
 
 	go func() {
-		logger.Info("HTTP server listening", "addr", ":8080")
-		errCh <- r.Run(":8080")
+		logger.Info("HTTP server listening", "addr", ":"+cfg.HTTPPort)
+		errCh <- r.Run(":" + cfg.HTTPPort)
 	}()
 
 	log.Fatal(<-errCh)
+}
+
+// findEnvFile walks up from the current working directory until it finds a
+// .env file. This allows running the binary from any subdirectory of the project.
+func findEnvFile() string {
+	dir, _ := os.Getwd()
+	for {
+		candidate := filepath.Join(dir, ".env")
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
+	}
+	return ".env"
 }

@@ -1,0 +1,52 @@
+services:
+
+  # ── PostgreSQL ─────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: billing_db
+      POSTGRES_USER: billing
+      POSTGRES_PASSWORD: "123456"
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U billing -d billing_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── DB migrations (plain psql — no up/down split required) ─────────────────
+  migrate:
+    image: postgres:17-alpine
+    volumes:
+      - ./migrations:/migrations
+    environment:
+      PGPASSWORD: "123456"
+    command: >
+      sh -c "for f in /migrations/*.sql; do
+               echo \"Running $$f ...\";
+               psql -h postgres -U billing -d billing_db -f $$f || exit 1;
+             done"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ── App ────────────────────────────────────────────────────────────────────
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+      - "9090:9090"
+    env_file: .env
+    environment:
+      # Override localhost with the Docker service name
+      DATABASE_URL: postgres://billing:123456@postgres:5432/billing_db?sslmode=disable
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
