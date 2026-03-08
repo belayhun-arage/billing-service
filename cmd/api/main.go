@@ -10,6 +10,7 @@ import (
 
 	billingv1 "github.com/belayhun-arage/billing-service/gen/billing/v1"
 	grpcdelivery "github.com/belayhun-arage/billing-service/internal/delivery/grpc"
+	grpcpkg "github.com/belayhun-arage/billing-service/pkg/grpc"
 	httpdelivery "github.com/belayhun-arage/billing-service/internal/delivery/http"
 	"github.com/belayhun-arage/billing-service/internal/repository/postgres"
 	"github.com/belayhun-arage/billing-service/internal/usecase"
@@ -64,7 +65,12 @@ func main() {
 	// --- gRPC server ---
 	grpcPaymentHandler := grpcdelivery.NewPaymentHandler(processPaymentUC, logger)
 
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(
+		grpc.ChainUnaryInterceptor(
+			grpcpkg.RecoveryInterceptor(logger),
+			grpcpkg.LoggingInterceptor(logger),
+		),
+	)
 	billingv1.RegisterBillingServiceServer(grpcServer, grpcPaymentHandler)
 
 	lis, err := net.Listen("tcp", ":9090")
