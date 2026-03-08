@@ -7,16 +7,20 @@ import (
 	"google.golang.org/grpc/status"
 
 	billingv1 "github.com/belayhun-arage/billing-service/gen/billing/v1"
-	"github.com/belayhun-arage/billing-service/internal/usecase"
 )
+
+// paymentExecutor is satisfied by *usecase.ProcessPaymentUsecase and any test mock.
+type paymentExecutor interface {
+	Execute(ctx context.Context, customerID string, amount int64) error
+}
 
 // PaymentHandler implements billingv1.BillingServiceServer.
 type PaymentHandler struct {
 	billingv1.UnimplementedBillingServiceServer
-	usecase *usecase.ProcessPaymentUsecase
+	usecase paymentExecutor
 }
 
-func NewPaymentHandler(u *usecase.ProcessPaymentUsecase) *PaymentHandler {
+func NewPaymentHandler(u paymentExecutor) *PaymentHandler {
 	return &PaymentHandler{usecase: u}
 }
 
