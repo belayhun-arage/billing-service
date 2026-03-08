@@ -22,6 +22,10 @@ type Config struct {
 	SMTPUser string
 	SMTPPass string
 	SMTPFrom string
+
+	// Rate limiting — requests per second per API key and burst size.
+	RateLimitRPS   float64
+	RateLimitBurst int
 }
 
 // Load reads environment variables, applies defaults for optional fields,
@@ -45,6 +49,9 @@ func Load() (*Config, error) {
 		SMTPUser: os.Getenv("SMTP_USER"),
 		SMTPPass: os.Getenv("SMTP_PASS"),
 		SMTPFrom: os.Getenv("SMTP_FROM"),
+
+		RateLimitRPS:   getEnvFloat("RATE_LIMIT_RPS", 10),   // 10 req/s = 600/min
+		RateLimitBurst: getEnvInt("RATE_LIMIT_BURST", 20),
 	}
 
 	rawOrigins := os.Getenv("ALLOWED_ORIGINS")
@@ -74,6 +81,24 @@ func (c *Config) validate() error {
 func getEnvOrDefault(key, defaultVal string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
+	}
+	return defaultVal
+}
+
+func getEnvFloat(key string, defaultVal float64) float64 {
+	if v := os.Getenv(key); v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			return f
+		}
+	}
+	return defaultVal
+}
+
+func getEnvInt(key string, defaultVal int) int {
+	if v := os.Getenv(key); v != "" {
+		if i, err := strconv.Atoi(v); err == nil {
+			return i
+		}
 	}
 	return defaultVal
 }

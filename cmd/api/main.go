@@ -109,8 +109,10 @@ func main() {
 	r.POST("/api-keys", apiKeyHandler.Create)
 
 	// Protected — all business routes require valid API key + HMAC signature
+	rateLimiter := auth.NewRateLimiter(cfg.RateLimitRPS, cfg.RateLimitBurst)
 	protected := r.Group("/")
 	protected.Use(auth.HMACAuth(apiKeyRepo))
+	protected.Use(auth.RateLimit(rateLimiter))
 	protected.Use(middleware.IdempotencyMiddleware(idempotencyRepo))
 	{
 		protected.POST("/customers", customerHandler.CreateCustomer)
