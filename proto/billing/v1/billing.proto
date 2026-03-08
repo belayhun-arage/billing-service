@@ -11,8 +11,9 @@ message ProcessPaymentRequest {
 }
 
 message ProcessPaymentResponse {
-  string payment_id = 1;
-  string status     = 2;
+  string payment_id  = 1;
+  string invoice_id  = 2;
+  string status      = 3;
 }
 
 service BillingService {

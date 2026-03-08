@@ -29,11 +29,15 @@ func (h *PaymentHandler) ProcessPayment(c *gin.Context) {
 		return
 	}
 
-	err := h.usecase.Execute(c.Request.Context(), req.CustomerID, req.Amount)
+	result, err := h.usecase.Execute(c.Request.Context(), req.CustomerID, req.Amount)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"status": "payment processed"})
+	c.JSON(http.StatusCreated, gin.H{
+		"payment_id": result.PaymentID,
+		"invoice_id": result.InvoiceID,
+		"status":     "payment processed",
+	})
 }

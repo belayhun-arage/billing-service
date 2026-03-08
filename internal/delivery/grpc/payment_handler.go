@@ -7,11 +7,12 @@ import (
 	"google.golang.org/grpc/status"
 
 	billingv1 "github.com/belayhun-arage/billing-service/gen/billing/v1"
+	"github.com/belayhun-arage/billing-service/internal/usecase"
 )
 
 // paymentExecutor is satisfied by *usecase.ProcessPaymentUsecase and any test mock.
 type paymentExecutor interface {
-	Execute(ctx context.Context, customerID string, amount int64) error
+	Execute(ctx context.Context, customerID string, amount int64) (*usecase.PaymentResult, error)
 }
 
 // PaymentHandler implements billingv1.BillingServiceServer.
@@ -36,12 +37,14 @@ func (h *PaymentHandler) ProcessPayment(
 		return nil, status.Error(codes.InvalidArgument, "amount must be greater than zero")
 	}
 
-	err := h.usecase.Execute(ctx, req.CustomerId, req.Amount)
+	result, err := h.usecase.Execute(ctx, req.CustomerId, req.Amount)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "payment processing failed: %v", err)
 	}
 
 	return &billingv1.ProcessPaymentResponse{
-		Status: "completed",
+		PaymentId: result.PaymentID,
+		InvoiceId: result.InvoiceID,
+		Status:    "completed",
 	}, nil
 }

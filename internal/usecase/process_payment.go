@@ -28,13 +28,21 @@ func NewProcessPaymentUsecase(
 		paymentRepo: paymentRepo,
 	}
 }
+// PaymentResult holds the IDs created during payment processing.
+type PaymentResult struct {
+	PaymentID string
+	InvoiceID string
+}
+
 func (u *ProcessPaymentUsecase) Execute(
 	ctx context.Context,
 	customerID string,
 	amount int64,
-) error {
+) (*PaymentResult, error) {
 
-	return db.WithTransaction(ctx, u.pool, func(tx pgx.Tx) error {
+	var result PaymentResult
+
+	err := db.WithTransaction(ctx, u.pool, func(tx pgx.Tx) error {
 
 		invoice := &domain.Invoice{
 			ID:         uuid.New().String(),
@@ -44,8 +52,7 @@ func (u *ProcessPaymentUsecase) Execute(
 			CreatedAt:  time.Now(),
 		}
 
-		err := u.invoiceRepo.Create(ctx, tx, invoice)
-		if err != nil {
+		if err := u.invoiceRepo.Create(ctx, tx, invoice); err != nil {
 			return err
 		}
 
@@ -56,11 +63,17 @@ func (u *ProcessPaymentUsecase) Execute(
 			Status:    "completed",
 		}
 
-		err = u.paymentRepo.Create(ctx, tx, payment)
-		if err != nil {
+		if err := u.paymentRepo.Create(ctx, tx, payment); err != nil {
 			return err
 		}
 
+		result.PaymentID = payment.ID
+		result.InvoiceID = invoice.ID
 		return nil
 	})
+
+	if err != nil {
+		return nil, err
+	}
+	return &result, nil
 }

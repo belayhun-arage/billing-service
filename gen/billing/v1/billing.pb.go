@@ -84,7 +84,8 @@ func (x *ProcessPaymentRequest) GetIdempotencyKey() string {
 type ProcessPaymentResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	PaymentId     string                 `protobuf:"bytes,1,opt,name=payment_id,json=paymentId,proto3" json:"payment_id,omitempty"`
-	Status        string                 `protobuf:"bytes,2,opt,name=status,proto3" json:"status,omitempty"`
+	InvoiceId     string                 `protobuf:"bytes,2,opt,name=invoice_id,json=invoiceId,proto3" json:"invoice_id,omitempty"`
+	Status        string                 `protobuf:"bytes,3,opt,name=status,proto3" json:"status,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -126,6 +127,13 @@ func (x *ProcessPaymentResponse) GetPaymentId() string {
 	return ""
 }
 
+func (x *ProcessPaymentResponse) GetInvoiceId() string {
+	if x != nil {
+		return x.InvoiceId
+	}
+	return ""
+}
+
 func (x *ProcessPaymentResponse) GetStatus() string {
 	if x != nil {
 		return x.Status
@@ -143,11 +151,13 @@ const file_billing_v1_billing_proto_rawDesc = "" +
 	"\vcustomer_id\x18\x01 \x01(\tR\n" +
 	"customerId\x12\x16\n" +
 	"\x06amount\x18\x02 \x01(\x03R\x06amount\x12'\n" +
-	"\x0fidempotency_key\x18\x03 \x01(\tR\x0eidempotencyKey\"O\n" +
+	"\x0fidempotency_key\x18\x03 \x01(\tR\x0eidempotencyKey\"n\n" +
 	"\x16ProcessPaymentResponse\x12\x1d\n" +
 	"\n" +
-	"payment_id\x18\x01 \x01(\tR\tpaymentId\x12\x16\n" +
-	"\x06status\x18\x02 \x01(\tR\x06status2i\n" +
+	"payment_id\x18\x01 \x01(\tR\tpaymentId\x12\x1d\n" +
+	"\n" +
+	"invoice_id\x18\x02 \x01(\tR\tinvoiceId\x12\x16\n" +
+	"\x06status\x18\x03 \x01(\tR\x06status2i\n" +
 	"\x0eBillingService\x12W\n" +
 	"\x0eProcessPayment\x12!.billing.v1.ProcessPaymentRequest\x1a\".billing.v1.ProcessPaymentResponseBDZBgithub.com/belayhun-arage/billing-service/gen/billing/v1;billingv1b\x06proto3"
 

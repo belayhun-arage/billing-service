@@ -22,6 +22,8 @@ func TestProcessPayment(t *testing.T) {
 		wantStatus     string
 		wantCustomerID string
 		wantAmount     int64
+		wantPaymentID  string
+		wantInvoiceID  string
 	}{
 		{
 			name:           "happy path — valid request processed successfully",
@@ -30,6 +32,8 @@ func TestProcessPayment(t *testing.T) {
 			wantStatus:     "completed",
 			wantCustomerID: "cust-123",
 			wantAmount:     5000,
+			wantPaymentID:  "pay-test",
+			wantInvoiceID:  "inv-test",
 		},
 		{
 			name:     "missing customer_id returns InvalidArgument",
@@ -67,6 +71,12 @@ func TestProcessPayment(t *testing.T) {
 				}
 				if resp.Status != tc.wantStatus {
 					t.Errorf("expected response status %q, got %q", tc.wantStatus, resp.Status)
+				}
+				if resp.PaymentId != tc.wantPaymentID {
+					t.Errorf("expected payment_id %q, got %q", tc.wantPaymentID, resp.PaymentId)
+				}
+				if resp.InvoiceId != tc.wantInvoiceID {
+					t.Errorf("expected invoice_id %q, got %q", tc.wantInvoiceID, resp.InvoiceId)
 				}
 				if mock.CalledWith.CustomerID != tc.wantCustomerID {
 					t.Errorf("usecase called with customer_id %q, want %q", mock.CalledWith.CustomerID, tc.wantCustomerID)
