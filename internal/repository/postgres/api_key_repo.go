@@ -24,6 +24,20 @@ func (r *APIKeyRepository) Create(ctx context.Context, k *domain.APIKey) error {
 	return err
 }
 
+func (r *APIKeyRepository) Revoke(ctx context.Context, key string) error {
+	tag, err := r.db.Exec(ctx, `
+		UPDATE api_keys SET revoked_at = now()
+		WHERE key = $1 AND revoked_at IS NULL
+	`, key)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return domain.ErrAPIKeyNotFound
+	}
+	return nil
+}
+
 func (r *APIKeyRepository) GetByKey(ctx context.Context, key string) (*domain.APIKey, error) {
 	var k domain.APIKey
 	err := r.db.QueryRow(ctx, `

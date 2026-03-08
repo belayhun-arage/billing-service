@@ -80,6 +80,7 @@ func main() {
 	createInvoiceUC := usecase.NewCreateInvoiceUsecase(invoiceRepo)
 	sendInvoiceUC := usecase.NewSendInvoiceUsecase(invoiceRepo, customerRepo, emailSender)
 	createAPIKeyUC := usecase.NewCreateAPIKeyUsecase(apiKeyRepo)
+	revokeAPIKeyUC := usecase.NewRevokeAPIKeyUsecase(apiKeyRepo)
 	processPaymentUC := usecase.NewProcessPaymentUsecase(
 		pool,
 		customerRepo,
@@ -94,7 +95,7 @@ func main() {
 	customerHandler := httpdelivery.NewCustomerHandler(createCustomerUC, logger)
 	invoiceHandler := httpdelivery.NewInvoiceHandler(createInvoiceUC, sendInvoiceUC, logger)
 	paymentHandler := httpdelivery.NewPaymentHandler(processPaymentUC, logger)
-	apiKeyHandler := httpdelivery.NewAPIKeyHandler(createAPIKeyUC, logger)
+	apiKeyHandler := httpdelivery.NewAPIKeyHandler(createAPIKeyUC, revokeAPIKeyUC, logger)
 
 	r := gin.Default()
 	r.Use(cors.New(cors.Config{
@@ -105,8 +106,9 @@ func main() {
 		MaxAge:           12 * time.Hour,
 	}))
 
-	// Public — issue API keys (bootstrap; protect with a separate admin secret in production)
+	// Public — issue and revoke API keys
 	r.POST("/api-keys", apiKeyHandler.Create)
+	r.DELETE("/api-keys/:key", apiKeyHandler.Revoke)
 
 	// Protected — all business routes require valid API key + HMAC signature
 	rateLimiter := auth.NewRateLimiter(cfg.RateLimitRPS, cfg.RateLimitBurst)

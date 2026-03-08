@@ -46,6 +46,8 @@ func NewAPIKey(customerID string) (*APIKey, error) {
 	}, nil
 }
 
+var ErrAPIKeyNotFound = errors.New("api key not found or already revoked")
+
 func (k *APIKey) IsActive() bool {
 	return k.RevokedAt == nil
 }
@@ -53,4 +55,5 @@ func (k *APIKey) IsActive() bool {
 type APIKeyRepository interface {
 	Create(ctx context.Context, key *APIKey) error
 	GetByKey(ctx context.Context, key string) (*APIKey, error)
+	Revoke(ctx context.Context, key string) error
 }

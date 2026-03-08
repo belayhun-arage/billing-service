@@ -1,21 +1,28 @@
 package http
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/belayhun-arage/billing-service/internal/domain"
 	"github.com/belayhun-arage/billing-service/internal/usecase"
 )
 
 type APIKeyHandler struct {
-	usecase *usecase.CreateAPIKeyUsecase
-	log     *slog.Logger
+	create *usecase.CreateAPIKeyUsecase
+	revoke *usecase.RevokeAPIKeyUsecase
+	log    *slog.Logger
 }
 
-func NewAPIKeyHandler(u *usecase.CreateAPIKeyUsecase, log *slog.Logger) *APIKeyHandler {
-	return &APIKeyHandler{usecase: u, log: log}
+func NewAPIKeyHandler(
+	create *usecase.CreateAPIKeyUsecase,
+	revoke *usecase.RevokeAPIKeyUsecase,
+	log *slog.Logger,
+) *APIKeyHandler {
+	return &APIKeyHandler{create: create, revoke: revoke, log: log}
 }
 
 type createAPIKeyRequest struct {
@@ -31,7 +38,7 @@ func (h *APIKeyHandler) Create(c *gin.Context) {
 		return
 	}
 
-	result, err := h.usecase.Execute(c.Request.Context(), req.CustomerID)
+	result, err := h.create.Execute(c.Request.Context(), req.CustomerID)
 	if err != nil {
 		h.log.Error("create api key failed", "customer_id", req.CustomerID, "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -45,4 +52,23 @@ func (h *APIKeyHandler) Create(c *gin.Context) {
 		"customer_id": result.CustomerID,
 		"note":        "Store the secret securely — it will not be shown again.",
 	})
+}
+
+// Revoke immediately invalidates an API key.
+// DELETE /api-keys/:key
+func (h *APIKeyHandler) Revoke(c *gin.Context) {
+	key := c.Param("key")
+
+	if err := h.revoke.Execute(c.Request.Context(), key); err != nil {
+		if errors.Is(err, domain.ErrAPIKeyNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+			return
+		}
+		h.log.Error("revoke api key failed", "key", key, "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	h.log.Info("api key revoked", "key", key)
+	c.JSON(http.StatusOK, gin.H{"message": "api key revoked"})
 }
