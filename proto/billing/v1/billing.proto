@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package billing.v1;
+
+option go_package = "github.com/belayhun-arage/billing-service/gen/billing/v1;billingv1";
+
+message ProcessPaymentRequest {
+  string customer_id     = 1;
+  int64  amount          = 2;
+  string idempotency_key = 3;
+}
+
+message ProcessPaymentResponse {
+  string payment_id = 1;
+  string status     = 2;
+}
+
+service BillingService {
+  rpc ProcessPayment(ProcessPaymentRequest) returns (ProcessPaymentResponse);
+}
