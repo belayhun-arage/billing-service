@@ -1,6 +1,9 @@
 package domain
 
-import "time"
+import (
+	"context"
+	"time"
+)
 
 type Customer struct {
 	ID               string
@@ -8,4 +11,9 @@ type Customer struct {
 	Email            string
 	StripeCustomerID string // Stripe Customer ID (set after Stripe registration)
 	CreatedAt        time.Time
+}
+
+type CustomerRepository interface {
+	Create(ctx context.Context, customer *Customer) error
+	GetByID(ctx context.Context, id string) (*Customer, error)
 }

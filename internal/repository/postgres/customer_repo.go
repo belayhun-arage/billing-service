@@ -28,12 +28,12 @@ func (r *CustomerRepository) Create(ctx context.Context, customer *domain.Custom
 
 func (r *CustomerRepository) GetByID(ctx context.Context, id string) (*domain.Customer, error) {
 	query := `
-	SELECT id, name, email, created_at
+	SELECT id, name, email, stripe_customer_id, created_at
 	FROM customers
 	WHERE id = $1
 	`
 	var c domain.Customer
-	err := r.db.QueryRow(ctx, query, id).Scan(&c.ID, &c.Name, &c.Email, &c.CreatedAt)
+	err := r.db.QueryRow(ctx, query, id).Scan(&c.ID, &c.Name, &c.Email, &c.StripeCustomerID, &c.CreatedAt)
 	if err != nil {
 		return nil, err
 	}

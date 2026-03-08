@@ -3,16 +3,18 @@ package main
 import (
 	"log"
 	"net"
+	"os"
 
 	"google.golang.org/grpc"
 
 	billingv1 "github.com/belayhun-arage/billing-service/gen/billing/v1"
-	httpdelivery "github.com/belayhun-arage/billing-service/internal/delivery/http"
 	grpcdelivery "github.com/belayhun-arage/billing-service/internal/delivery/grpc"
+	httpdelivery "github.com/belayhun-arage/billing-service/internal/delivery/http"
 	"github.com/belayhun-arage/billing-service/internal/repository/postgres"
 	"github.com/belayhun-arage/billing-service/internal/usecase"
 	"github.com/belayhun-arage/billing-service/pkg/db"
 	"github.com/belayhun-arage/billing-service/pkg/db/middleware"
+	stripe "github.com/belayhun-arage/billing-service/external/stripe"
 
 	"github.com/gin-gonic/gin"
 )
@@ -24,14 +26,26 @@ func main() {
 		panic(err)
 	}
 
+	stripeClient := stripe.NewStripeClient(os.Getenv("STRIPE_SECRET_KEY"))
+
 	customerRepo := postgres.NewCustomerRepository(pool)
 	invoiceRepo := postgres.NewInvoiceRepository(pool)
 	paymentRepo := postgres.NewPaymentRepository(pool)
+	ledgerRepo := postgres.NewLedgerRepository(pool)
+	outboxRepo := postgres.NewOutboxRepository(pool)
 	idempotencyRepo := postgres.NewIdempotencyRepository(pool)
 
 	createCustomerUC := usecase.NewCreateCustomerUsecase(customerRepo)
 	createInvoiceUC := usecase.NewCreateInvoiceUsecase(invoiceRepo)
-	processPaymentUC := usecase.NewProcessPaymentUsecase(pool, invoiceRepo, paymentRepo)
+	processPaymentUC := usecase.NewProcessPaymentUsecase(
+		pool,
+		customerRepo,
+		invoiceRepo,
+		paymentRepo,
+		ledgerRepo,
+		outboxRepo,
+		stripeClient,
+	)
 
 	// --- HTTP server ---
 	customerHandler := httpdelivery.NewCustomerHandler(createCustomerUC)
