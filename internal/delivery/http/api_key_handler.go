@@ -26,10 +26,10 @@ func NewAPIKeyHandler(
 }
 
 type createAPIKeyRequest struct {
-	CustomerID string `json:"customer_id"`
+	Label string `json:"label"` // optional human-readable identifier, e.g. "production"
 }
 
-// Create issues a new API key + secret for a customer.
+// Create issues a new service-level API key + secret.
 // POST /api-keys
 func (h *APIKeyHandler) Create(c *gin.Context) {
 	var req createAPIKeyRequest
@@ -38,29 +38,28 @@ func (h *APIKeyHandler) Create(c *gin.Context) {
 		return
 	}
 
-	result, err := h.create.Execute(c.Request.Context(), req.CustomerID)
+	result, err := h.create.Execute(c.Request.Context(), req.Label)
 	if err != nil {
-		h.log.Error("create api key failed", "customer_id", req.CustomerID, "error", err)
+		h.log.Error("create api key failed", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	h.log.Info("api key created", "key_id", result.ID, "customer_id", result.CustomerID)
+	h.log.Info("api key created", "key_id", result.ID, "label", result.Label)
 	c.JSON(http.StatusCreated, gin.H{
-		"key":         result.Key,
-		"secret":      result.Secret,
-		"customer_id": result.CustomerID,
-		"note":        "Store the secret securely — it will not be shown again.",
+		"key":    result.Key,
+		"secret": result.Secret,
+		"label":  result.Label,
+		"note":   "Store the secret securely — it will not be shown again.",
 	})
 }
 
 // Revoke immediately invalidates an API key.
-// DELETE /api-keys/:key  (protected — requires HMAC auth)
+// DELETE /api-keys/:key  (protected — requires a valid HMAC-authenticated request)
 func (h *APIKeyHandler) Revoke(c *gin.Context) {
 	key := c.Param("key")
-	callerCustomerID := c.GetString("customer_id")
 
-	if err := h.revoke.Execute(c.Request.Context(), key, callerCustomerID); err != nil {
+	if err := h.revoke.Execute(c.Request.Context(), key); err != nil {
 		if errors.Is(err, domain.ErrAPIKeyNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 			return

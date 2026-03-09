@@ -10,23 +10,22 @@ import (
 	"github.com/google/uuid"
 )
 
+// APIKey is a service-level credential used by the merchant's own backend
+// systems to authenticate against this billing API.
+// It is not scoped to any individual customer.
 type APIKey struct {
-	ID         string
-	Key        string
-	Secret     string // raw secret — used as HMAC signing key
-	CustomerID string
-	CreatedAt  time.Time
-	RevokedAt  *time.Time
+	ID        string
+	Key       string
+	Secret    string // raw secret — used as HMAC signing key; stored in DB, shown once
+	Label     string // human-readable label, e.g. "production", "dashboard"
+	CreatedAt time.Time
+	RevokedAt *time.Time
 }
 
-// NewAPIKey generates a new API key + secret pair for the given customer.
+// NewAPIKey generates a new API key + secret pair.
 // The Secret is the raw signing secret and must be returned to the caller once
 // — it is stored in the DB and never exposed again.
-func NewAPIKey(customerID string) (*APIKey, error) {
-	if customerID == "" {
-		return nil, errors.New("customer_id is required")
-	}
-
+func NewAPIKey(label string) (*APIKey, error) {
 	keyBytes := make([]byte, 16)
 	if _, err := rand.Read(keyBytes); err != nil {
 		return nil, err
@@ -38,11 +37,11 @@ func NewAPIKey(customerID string) (*APIKey, error) {
 	}
 
 	return &APIKey{
-		ID:         uuid.New().String(),
-		Key:        "bk_" + hex.EncodeToString(keyBytes), // e.g. bk_a3f1...
-		Secret:     hex.EncodeToString(secretBytes),       // 64-char hex string
-		CustomerID: customerID,
-		CreatedAt:  time.Now(),
+		ID:        uuid.New().String(),
+		Key:       "bk_" + hex.EncodeToString(keyBytes),
+		Secret:    hex.EncodeToString(secretBytes),
+		Label:     label,
+		CreatedAt: time.Now(),
 	}, nil
 }
 

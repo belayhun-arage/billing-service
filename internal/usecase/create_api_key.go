@@ -14,15 +14,19 @@ func NewCreateAPIKeyUsecase(repo domain.APIKeyRepository) *CreateAPIKeyUsecase {
 	return &CreateAPIKeyUsecase{repo: repo}
 }
 
+// APIKeyResult carries the newly created key back to the caller.
+// Secret is only available here — it is not exposed again after creation.
 type APIKeyResult struct {
-	ID         string `json:"id"`
-	Key        string `json:"key"`
-	Secret     string `json:"secret"`
-	CustomerID string `json:"customer_id"`
+	ID     string
+	Key    string
+	Secret string
+	Label  string
 }
 
-func (u *CreateAPIKeyUsecase) Execute(ctx context.Context, customerID string) (*APIKeyResult, error) {
-	apiKey, err := domain.NewAPIKey(customerID)
+// Execute creates a new service-level API key with the given label.
+// label is optional and used only for human identification (e.g. "production").
+func (u *CreateAPIKeyUsecase) Execute(ctx context.Context, label string) (*APIKeyResult, error) {
+	apiKey, err := domain.NewAPIKey(label)
 	if err != nil {
 		return nil, err
 	}
@@ -32,9 +36,9 @@ func (u *CreateAPIKeyUsecase) Execute(ctx context.Context, customerID string) (*
 	}
 
 	return &APIKeyResult{
-		ID:         apiKey.ID,
-		Key:        apiKey.Key,
-		Secret:     apiKey.Secret,
-		CustomerID: apiKey.CustomerID,
+		ID:     apiKey.ID,
+		Key:    apiKey.Key,
+		Secret: apiKey.Secret,
+		Label:  apiKey.Label,
 	}, nil
 }

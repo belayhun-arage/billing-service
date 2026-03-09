@@ -152,7 +152,7 @@ func TestNewPayment_InvalidInputs(t *testing.T) {
 // ── NewAPIKey ─────────────────────────────────────────────────────────────────
 
 func TestNewAPIKey_Valid(t *testing.T) {
-	k, err := domain.NewAPIKey("cust-123")
+	k, err := domain.NewAPIKey("production")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -165,24 +165,28 @@ func TestNewAPIKey_Valid(t *testing.T) {
 	if len(k.Secret) != 64 {
 		t.Errorf("Secret length = %d, want 64 hex chars", len(k.Secret))
 	}
-	if k.CustomerID != "cust-123" {
-		t.Errorf("CustomerID = %q, want %q", k.CustomerID, "cust-123")
+	if k.Label != "production" {
+		t.Errorf("Label = %q, want %q", k.Label, "production")
 	}
 	if k.RevokedAt != nil {
 		t.Error("RevokedAt must be nil on a new key")
 	}
 }
 
-func TestNewAPIKey_EmptyCustomerID(t *testing.T) {
-	_, err := domain.NewAPIKey("")
-	if err == nil {
-		t.Fatal("expected error for empty customer_id, got nil")
+func TestNewAPIKey_EmptyLabelAllowed(t *testing.T) {
+	// label is optional — empty string is valid for service-level keys
+	k, err := domain.NewAPIKey("")
+	if err != nil {
+		t.Fatalf("expected no error for empty label, got %v", err)
+	}
+	if k.Label != "" {
+		t.Errorf("Label = %q, want empty", k.Label)
 	}
 }
 
 func TestNewAPIKey_GeneratesUniqueKeys(t *testing.T) {
-	k1, _ := domain.NewAPIKey("cust-123")
-	k2, _ := domain.NewAPIKey("cust-123")
+	k1, _ := domain.NewAPIKey("production")
+	k2, _ := domain.NewAPIKey("production")
 
 	if k1.Key == k2.Key {
 		t.Error("two generated keys must be unique")

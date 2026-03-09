@@ -38,7 +38,10 @@ func newRouter(repo domain.APIKeyRepository) *gin.Engine {
 	r := gin.New()
 	r.Use(auth.HMACAuth(repo))
 	r.POST("/test", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"customer_id": c.GetString("customer_id")})
+		c.JSON(http.StatusOK, gin.H{
+			"api_key_id":    c.GetString("api_key_id"),
+			"api_key_label": c.GetString("api_key_label"),
+		})
 	})
 	return r
 }
@@ -46,10 +49,10 @@ func newRouter(repo domain.APIKeyRepository) *gin.Engine {
 // fixture builds a consistent test API key and a matching mock repo.
 func fixture() (*domain.APIKey, domain.APIKeyRepository) {
 	key := &domain.APIKey{
-		ID:         "key-id-1",
-		Key:        "bk_testfixture",
-		Secret:     "supersecrethmackey1234567890abcdef",
-		CustomerID: "cust-abc",
+		ID:     "key-id-1",
+		Key:    "bk_testfixture",
+		Secret: "supersecrethmackey1234567890abcdef",
+		Label:  "test",
 	}
 	repo := &mocks.MockAPIKeyRepository{
 		GetByKeyFn: func(_ context.Context, k string) (*domain.APIKey, error) {
@@ -80,11 +83,14 @@ func TestHMACAuth_ValidRequest(t *testing.T) {
 		t.Errorf("expected 200, got %d: %s", w.Code, w.Body.String())
 	}
 
-	// Verify customer_id is propagated into the handler context.
+	// Verify api_key_id and api_key_label are propagated into the handler context.
 	var resp map[string]string
 	json.NewDecoder(w.Body).Decode(&resp)
-	if resp["customer_id"] != key.CustomerID {
-		t.Errorf("customer_id = %q, want %q", resp["customer_id"], key.CustomerID)
+	if resp["api_key_id"] != key.ID {
+		t.Errorf("api_key_id = %q, want %q", resp["api_key_id"], key.ID)
+	}
+	if resp["api_key_label"] != key.Label {
+		t.Errorf("api_key_label = %q, want %q", resp["api_key_label"], key.Label)
 	}
 }
 
@@ -181,11 +187,11 @@ func TestHMACAuth_InvalidAPIKey(t *testing.T) {
 func TestHMACAuth_RevokedKey(t *testing.T) {
 	now := time.Now()
 	revokedKey := &domain.APIKey{
-		ID:         "key-revoked",
-		Key:        "bk_revoked",
-		Secret:     "revokedsecret1234567890abcdef1234",
-		CustomerID: "cust-abc",
-		RevokedAt:  &now,
+		ID:        "key-revoked",
+		Key:       "bk_revoked",
+		Secret:    "revokedsecret1234567890abcdef1234",
+		Label:     "revoked-key",
+		RevokedAt: &now,
 	}
 	repo := &mocks.MockAPIKeyRepository{
 		GetByKeyFn: func(_ context.Context, k string) (*domain.APIKey, error) {

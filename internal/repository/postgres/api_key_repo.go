@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -18,10 +19,26 @@ func NewAPIKeyRepository(db *pgxpool.Pool) *APIKeyRepository {
 
 func (r *APIKeyRepository) Create(ctx context.Context, k *domain.APIKey) error {
 	_, err := r.db.Exec(ctx, `
-		INSERT INTO api_keys (id, key, secret, customer_id, created_at)
+		INSERT INTO api_keys (id, key, secret, label, created_at)
 		VALUES ($1, $2, $3, $4, $5)
-	`, k.ID, k.Key, k.Secret, k.CustomerID, k.CreatedAt)
-	return err
+	`, k.ID, k.Key, k.Secret, k.Label, k.CreatedAt)
+	if err != nil {
+		return fmt.Errorf("create api key: %w", err)
+	}
+	return nil
+}
+
+func (r *APIKeyRepository) GetByKey(ctx context.Context, key string) (*domain.APIKey, error) {
+	var k domain.APIKey
+	err := r.db.QueryRow(ctx, `
+		SELECT id, key, secret, label, created_at, revoked_at
+		FROM api_keys
+		WHERE key = $1
+	`, key).Scan(&k.ID, &k.Key, &k.Secret, &k.Label, &k.CreatedAt, &k.RevokedAt)
+	if err != nil {
+		return nil, fmt.Errorf("get api key: %w", err)
+	}
+	return &k, nil
 }
 
 func (r *APIKeyRepository) Revoke(ctx context.Context, key string) error {
@@ -30,30 +47,10 @@ func (r *APIKeyRepository) Revoke(ctx context.Context, key string) error {
 		WHERE key = $1 AND revoked_at IS NULL
 	`, key)
 	if err != nil {
-		return err
+		return fmt.Errorf("revoke api key: %w", err)
 	}
 	if tag.RowsAffected() == 0 {
 		return domain.ErrAPIKeyNotFound
 	}
 	return nil
-}
-
-func (r *APIKeyRepository) GetByKey(ctx context.Context, key string) (*domain.APIKey, error) {
-	var k domain.APIKey
-	err := r.db.QueryRow(ctx, `
-		SELECT id, key, secret, customer_id, created_at, revoked_at
-		FROM api_keys
-		WHERE key = $1
-	`, key).Scan(
-		&k.ID,
-		&k.Key,
-		&k.Secret,
-		&k.CustomerID,
-		&k.CreatedAt,
-		&k.RevokedAt,
-	)
-	if err != nil {
-		return nil, err
-	}
-	return &k, nil
 }
