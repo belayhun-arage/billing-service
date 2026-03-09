@@ -111,9 +111,8 @@ func main() {
 		MaxAge:           12 * time.Hour,
 	}))
 
-	// Public — issue and revoke API keys
+	// Public — issue API keys only; no auth required to bootstrap a new key
 	r.POST("/api-keys", apiKeyHandler.Create)
-	r.DELETE("/api-keys/:key", apiKeyHandler.Revoke)
 
 	// Protected — all business routes require valid API key + HMAC signature
 	rateLimiter := auth.NewRateLimiter(cfg.RateLimitRPS, cfg.RateLimitBurst)
@@ -122,6 +121,7 @@ func main() {
 	protected.Use(auth.RateLimit(rateLimiter))
 	protected.Use(middleware.IdempotencyMiddleware(idempotencyRepo))
 	{
+		protected.DELETE("/api-keys/:key", apiKeyHandler.Revoke)
 		protected.POST("/customers", customerHandler.CreateCustomer)
 		protected.POST("/invoices", invoiceHandler.CreateInvoice)
 		protected.GET("/invoices/:id/pdf", invoiceHandler.DownloadPDF)
@@ -142,7 +142,7 @@ func main() {
 		publisher = messaging.NewNoOpPublisher(logger)
 		logger.Info("Kafka not configured — outbox events will be dropped")
 	}
-	outboxWorker := worker.NewOutboxWorker(pool, publisher)
+	outboxWorker := worker.NewOutboxWorker(pool, publisher, logger)
 	go outboxWorker.Start(ctx)
 
 	// --- gRPC server ---

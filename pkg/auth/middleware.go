@@ -15,7 +15,7 @@ import (
 	"github.com/belayhun-arage/billing-service/internal/domain"
 )
 
-const timestampTolerance = 5 * time.Minute
+const timestampTolerance = 30 * time.Second
 
 // HMACAuth returns a Gin middleware that authenticates requests using an
 // API key + HMAC-SHA256 request signature.
@@ -55,7 +55,7 @@ func HMACAuth(repo domain.APIKeyRepository) gin.HandlerFunc {
 		}
 		if diff > timestampTolerance {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error": "X-Timestamp is too old or too far in the future (±5 min allowed)",
+				"error": "X-Timestamp is too old or too far in the future (±30s allowed)",
 			})
 			return
 		}

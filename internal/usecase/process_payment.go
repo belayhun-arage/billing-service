@@ -110,7 +110,10 @@ func (u *ProcessPaymentUsecase) Execute(
 			return err
 		}
 
-		payload, _ := json.Marshal(invoice)
+		payload, err := json.Marshal(invoice)
+		if err != nil {
+			return fmt.Errorf("marshal invoice for outbox: %w", err)
+		}
 		event := &domain.OutboxEvent{
 			ID:        uuid.New().String(),
 			EventType: "invoice_paid",

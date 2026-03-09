@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -18,49 +19,57 @@ func NewCustomerRepository(db *pgxpool.Pool) *CustomerRepository {
 }
 
 func (r *CustomerRepository) Create(ctx context.Context, customer *domain.Customer) error {
-	query := `
-	INSERT INTO customers (id, name, email, created_at)
-	VALUES ($1, $2, $3, $4)
-	`
-	_, err := r.db.Exec(ctx, query, customer.ID, customer.Name, customer.Email, customer.CreatedAt)
-	return err
+	_, err := r.db.Exec(ctx, `
+		INSERT INTO customers (id, name, email, created_at)
+		VALUES ($1, $2, $3, $4)
+	`, customer.ID, customer.Name, customer.Email, customer.CreatedAt)
+	if err != nil {
+		return fmt.Errorf("create customer: %w", err)
+	}
+	return nil
 }
 
 func (r *CustomerRepository) GetByID(ctx context.Context, id string) (*domain.Customer, error) {
-	query := `
-	SELECT id, name, email, stripe_customer_id, created_at
-	FROM customers
-	WHERE id = $1
-	`
 	var c domain.Customer
-	err := r.db.QueryRow(ctx, query, id).Scan(&c.ID, &c.Name, &c.Email, &c.StripeCustomerID, &c.CreatedAt)
+	err := r.db.QueryRow(ctx, `
+		SELECT id, name, email, stripe_customer_id, created_at
+		FROM customers
+		WHERE id = $1
+	`, id).Scan(&c.ID, &c.Name, &c.Email, &c.StripeCustomerID, &c.CreatedAt)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get customer %s: %w", id, err)
 	}
 	return &c, nil
 }
 
 func (r *CustomerRepository) GetByEmail(ctx context.Context, email string) (*domain.Customer, error) {
-	query := `
-	SELECT id, name, email, created_at
-	FROM customers
-	WHERE email = $1
-	`
 	var c domain.Customer
-	err := r.db.QueryRow(ctx, query, email).Scan(&c.ID, &c.Name, &c.Email, &c.CreatedAt)
+	err := r.db.QueryRow(ctx, `
+		SELECT id, name, email, created_at
+		FROM customers
+		WHERE email = $1
+	`, email).Scan(&c.ID, &c.Name, &c.Email, &c.CreatedAt)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get customer by email: %w", err)
 	}
 	return &c, nil
 }
 
 func (r *CustomerRepository) ExistsByEmail(ctx context.Context, email string) (bool, error) {
 	var exists bool
-	err := r.db.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM customers WHERE email = $1)`, email).Scan(&exists)
-	return exists, err
+	err := r.db.QueryRow(ctx,
+		`SELECT EXISTS(SELECT 1 FROM customers WHERE email = $1)`, email,
+	).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("check email exists: %w", err)
+	}
+	return exists, nil
 }
 
 func (r *CustomerRepository) UpdatedAt(ctx context.Context, id string, updatedAt time.Time) error {
 	_, err := r.db.Exec(ctx, `UPDATE customers SET updated_at = $1 WHERE id = $2`, updatedAt, id)
-	return err
+	if err != nil {
+		return fmt.Errorf("update customer updated_at: %w", err)
+	}
+	return nil
 }

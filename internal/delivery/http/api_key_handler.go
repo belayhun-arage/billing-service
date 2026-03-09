@@ -55,11 +55,12 @@ func (h *APIKeyHandler) Create(c *gin.Context) {
 }
 
 // Revoke immediately invalidates an API key.
-// DELETE /api-keys/:key
+// DELETE /api-keys/:key  (protected — requires HMAC auth)
 func (h *APIKeyHandler) Revoke(c *gin.Context) {
 	key := c.Param("key")
+	callerCustomerID := c.GetString("customer_id")
 
-	if err := h.revoke.Execute(c.Request.Context(), key); err != nil {
+	if err := h.revoke.Execute(c.Request.Context(), key, callerCustomerID); err != nil {
 		if errors.Is(err, domain.ErrAPIKeyNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 			return

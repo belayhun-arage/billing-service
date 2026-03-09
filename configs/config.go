@@ -2,6 +2,7 @@ package configs
 
 import (
 	"errors"
+	"log/slog"
 	"os"
 	"strconv"
 	"strings"
@@ -39,6 +40,8 @@ func Load() (*Config, error) {
 	if p := os.Getenv("SMTP_PORT"); p != "" {
 		if parsed, err := strconv.Atoi(p); err == nil {
 			smtpPort = parsed
+		} else {
+			slog.Warn("invalid SMTP_PORT, using default", "value", p, "default", smtpPort)
 		}
 	}
 
@@ -93,19 +96,27 @@ func getEnvOrDefault(key, defaultVal string) string {
 }
 
 func getEnvFloat(key string, defaultVal float64) float64 {
-	if v := os.Getenv(key); v != "" {
-		if f, err := strconv.ParseFloat(v, 64); err == nil {
-			return f
-		}
+	v := os.Getenv(key)
+	if v == "" {
+		return defaultVal
 	}
-	return defaultVal
+	f, err := strconv.ParseFloat(v, 64)
+	if err != nil {
+		slog.Warn("invalid env var, using default", "key", key, "value", v, "default", defaultVal)
+		return defaultVal
+	}
+	return f
 }
 
 func getEnvInt(key string, defaultVal int) int {
-	if v := os.Getenv(key); v != "" {
-		if i, err := strconv.Atoi(v); err == nil {
-			return i
-		}
+	v := os.Getenv(key)
+	if v == "" {
+		return defaultVal
 	}
-	return defaultVal
+	i, err := strconv.Atoi(v)
+	if err != nil {
+		slog.Warn("invalid env var, using default", "key", key, "value", v, "default", defaultVal)
+		return defaultVal
+	}
+	return i
 }
