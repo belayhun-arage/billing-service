@@ -7,15 +7,20 @@ import (
 	"github.com/belayhun-arage/billing-service/internal/domain"
 )
 
+const testMerchantID = "merchant-abc-123"
+
 // ── NewCustomer ───────────────────────────────────────────────────────────────
 
 func TestNewCustomer_Valid(t *testing.T) {
-	c, err := domain.NewCustomer("Alice", "alice@example.com")
+	c, err := domain.NewCustomer(testMerchantID, "Alice", "alice@example.com")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if c.ID == "" {
 		t.Error("ID must not be empty")
+	}
+	if c.MerchantID != testMerchantID {
+		t.Errorf("MerchantID = %q, want %q", c.MerchantID, testMerchantID)
 	}
 	if c.Name != "Alice" {
 		t.Errorf("Name = %q, want %q", c.Name, "Alice")
@@ -29,7 +34,7 @@ func TestNewCustomer_Valid(t *testing.T) {
 }
 
 func TestNewCustomer_NormalizesInput(t *testing.T) {
-	c, err := domain.NewCustomer("  Alice  ", "  ALICE@Example.COM  ")
+	c, err := domain.NewCustomer(testMerchantID, "  Alice  ", "  ALICE@Example.COM  ")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -43,23 +48,25 @@ func TestNewCustomer_NormalizesInput(t *testing.T) {
 
 func TestNewCustomer_InvalidInputs(t *testing.T) {
 	tests := []struct {
-		desc  string
-		name  string
-		email string
+		desc       string
+		merchantID string
+		name       string
+		email      string
 	}{
-		{"empty name", "", "alice@example.com"},
-		{"whitespace name", "   ", "alice@example.com"},
-		{"empty email", "Alice", ""},
-		{"no @ in email", "Alice", "notanemail"},
-		{"no dot in domain", "Alice", "alice@nodot"},
-		{"empty local part", "Alice", "@example.com"},
+		{"empty merchant_id", "", "Alice", "alice@example.com"},
+		{"empty name", testMerchantID, "", "alice@example.com"},
+		{"whitespace name", testMerchantID, "   ", "alice@example.com"},
+		{"empty email", testMerchantID, "Alice", ""},
+		{"no @ in email", testMerchantID, "Alice", "notanemail"},
+		{"no dot in domain", testMerchantID, "Alice", "alice@nodot"},
+		{"empty local part", testMerchantID, "Alice", "@example.com"},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.desc, func(t *testing.T) {
-			_, err := domain.NewCustomer(tc.name, tc.email)
+			_, err := domain.NewCustomer(tc.merchantID, tc.name, tc.email)
 			if err == nil {
-				t.Errorf("NewCustomer(%q, %q): expected error, got nil", tc.name, tc.email)
+				t.Errorf("NewCustomer(%q, %q, %q): expected error, got nil", tc.merchantID, tc.name, tc.email)
 			}
 		})
 	}
@@ -152,12 +159,15 @@ func TestNewPayment_InvalidInputs(t *testing.T) {
 // ── NewAPIKey ─────────────────────────────────────────────────────────────────
 
 func TestNewAPIKey_Valid(t *testing.T) {
-	k, err := domain.NewAPIKey("production")
+	k, err := domain.NewAPIKey(testMerchantID, "production")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if k.ID == "" {
 		t.Error("ID must not be empty")
+	}
+	if k.MerchantID != testMerchantID {
+		t.Errorf("MerchantID = %q, want %q", k.MerchantID, testMerchantID)
 	}
 	if len(k.Key) < 3 || k.Key[:3] != "bk_" {
 		t.Errorf("Key %q must start with 'bk_'", k.Key)
@@ -174,8 +184,7 @@ func TestNewAPIKey_Valid(t *testing.T) {
 }
 
 func TestNewAPIKey_EmptyLabelAllowed(t *testing.T) {
-	// label is optional — empty string is valid for service-level keys
-	k, err := domain.NewAPIKey("")
+	k, err := domain.NewAPIKey(testMerchantID, "")
 	if err != nil {
 		t.Fatalf("expected no error for empty label, got %v", err)
 	}
@@ -184,9 +193,16 @@ func TestNewAPIKey_EmptyLabelAllowed(t *testing.T) {
 	}
 }
 
+func TestNewAPIKey_MissingMerchantID(t *testing.T) {
+	_, err := domain.NewAPIKey("", "production")
+	if err == nil {
+		t.Error("expected error when merchant_id is empty, got nil")
+	}
+}
+
 func TestNewAPIKey_GeneratesUniqueKeys(t *testing.T) {
-	k1, _ := domain.NewAPIKey("production")
-	k2, _ := domain.NewAPIKey("production")
+	k1, _ := domain.NewAPIKey(testMerchantID, "production")
+	k2, _ := domain.NewAPIKey(testMerchantID, "production")
 
 	if k1.Key == k2.Key {
 		t.Error("two generated keys must be unique")
@@ -199,7 +215,7 @@ func TestNewAPIKey_GeneratesUniqueKeys(t *testing.T) {
 // ── APIKey.IsActive ───────────────────────────────────────────────────────────
 
 func TestAPIKey_IsActive(t *testing.T) {
-	k, _ := domain.NewAPIKey("cust-123")
+	k, _ := domain.NewAPIKey(testMerchantID, "test")
 
 	if !k.IsActive() {
 		t.Error("new key should be active")

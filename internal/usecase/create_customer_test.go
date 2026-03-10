@@ -10,14 +10,16 @@ import (
 	"github.com/belayhun-arage/billing-service/test/mocks"
 )
 
+const testMerchantID = "merchant-abc-123"
+
 func TestCreateCustomer_HappyPath(t *testing.T) {
 	repo := &mocks.MockCustomerRepository{
-		ExistsByEmailFn: func(_ context.Context, _ string) (bool, error) { return false, nil },
-		CreateFn:        func(_ context.Context, _ *domain.Customer) error { return nil },
+		ExistsByEmailForMerchantFn: func(_ context.Context, _, _ string) (bool, error) { return false, nil },
+		CreateFn:                   func(_ context.Context, _ *domain.Customer) error { return nil },
 	}
 
 	uc := usecase.NewCreateCustomerUsecase(repo)
-	c, err := uc.Execute(context.Background(), "Alice", "alice@example.com")
+	c, err := uc.Execute(context.Background(), testMerchantID, "Alice", "alice@example.com")
 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -31,15 +33,18 @@ func TestCreateCustomer_HappyPath(t *testing.T) {
 	if c.ID == "" {
 		t.Error("ID must be set")
 	}
+	if c.MerchantID != testMerchantID {
+		t.Errorf("MerchantID = %q, want %q", c.MerchantID, testMerchantID)
+	}
 }
 
 func TestCreateCustomer_DuplicateEmail(t *testing.T) {
 	repo := &mocks.MockCustomerRepository{
-		ExistsByEmailFn: func(_ context.Context, _ string) (bool, error) { return true, nil },
+		ExistsByEmailForMerchantFn: func(_ context.Context, _, _ string) (bool, error) { return true, nil },
 	}
 
 	uc := usecase.NewCreateCustomerUsecase(repo)
-	_, err := uc.Execute(context.Background(), "Alice", "alice@example.com")
+	_, err := uc.Execute(context.Background(), testMerchantID, "Alice", "alice@example.com")
 
 	if err == nil {
 		t.Fatal("expected error for duplicate email, got nil")
@@ -47,10 +52,10 @@ func TestCreateCustomer_DuplicateEmail(t *testing.T) {
 }
 
 func TestCreateCustomer_InvalidDomainInput(t *testing.T) {
-	// ExistsByEmail should never be called — domain validation fails first.
+	// ExistsByEmailForMerchant should never be called — domain validation fails first.
 	called := false
 	repo := &mocks.MockCustomerRepository{
-		ExistsByEmailFn: func(_ context.Context, _ string) (bool, error) {
+		ExistsByEmailForMerchantFn: func(_ context.Context, _, _ string) (bool, error) {
 			called = true
 			return false, nil
 		},
@@ -63,24 +68,24 @@ func TestCreateCustomer_InvalidDomainInput(t *testing.T) {
 		{"Alice", "not-an-email"},
 	}
 	for _, tc := range tests {
-		_, err := uc.Execute(context.Background(), tc.name, tc.email)
+		_, err := uc.Execute(context.Background(), testMerchantID, tc.name, tc.email)
 		if err == nil {
 			t.Errorf("Execute(%q, %q): expected validation error, got nil", tc.name, tc.email)
 		}
 	}
 	if called {
-		t.Error("ExistsByEmail must not be called when domain validation fails")
+		t.Error("ExistsByEmailForMerchant must not be called when domain validation fails")
 	}
 }
 
 func TestCreateCustomer_ExistsByEmailRepoError(t *testing.T) {
 	repoErr := errors.New("db connection lost")
 	repo := &mocks.MockCustomerRepository{
-		ExistsByEmailFn: func(_ context.Context, _ string) (bool, error) { return false, repoErr },
+		ExistsByEmailForMerchantFn: func(_ context.Context, _, _ string) (bool, error) { return false, repoErr },
 	}
 
 	uc := usecase.NewCreateCustomerUsecase(repo)
-	_, err := uc.Execute(context.Background(), "Alice", "alice@example.com")
+	_, err := uc.Execute(context.Background(), testMerchantID, "Alice", "alice@example.com")
 
 	if !errors.Is(err, repoErr) {
 		t.Errorf("expected repo error to propagate, got %v", err)
@@ -90,12 +95,12 @@ func TestCreateCustomer_ExistsByEmailRepoError(t *testing.T) {
 func TestCreateCustomer_CreateRepoError(t *testing.T) {
 	repoErr := errors.New("insert failed")
 	repo := &mocks.MockCustomerRepository{
-		ExistsByEmailFn: func(_ context.Context, _ string) (bool, error) { return false, nil },
-		CreateFn:        func(_ context.Context, _ *domain.Customer) error { return repoErr },
+		ExistsByEmailForMerchantFn: func(_ context.Context, _, _ string) (bool, error) { return false, nil },
+		CreateFn:                   func(_ context.Context, _ *domain.Customer) error { return repoErr },
 	}
 
 	uc := usecase.NewCreateCustomerUsecase(repo)
-	_, err := uc.Execute(context.Background(), "Alice", "alice@example.com")
+	_, err := uc.Execute(context.Background(), testMerchantID, "Alice", "alice@example.com")
 
 	if !errors.Is(err, repoErr) {
 		t.Errorf("expected repo error to propagate, got %v", err)

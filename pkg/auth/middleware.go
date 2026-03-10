@@ -91,9 +91,10 @@ func HMACAuth(repo domain.APIKeyRepository) gin.HandlerFunc {
 			return
 		}
 
-		// Expose key metadata for downstream handlers (e.g. audit logging).
+		// Expose key + merchant metadata for downstream handlers.
 		c.Set("api_key_id", key.ID)
 		c.Set("api_key_label", key.Label)
+		c.Set("merchant_id", key.MerchantID)
 		c.Next()
 	}
 }

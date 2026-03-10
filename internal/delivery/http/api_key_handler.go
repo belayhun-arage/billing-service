@@ -26,11 +26,12 @@ func NewAPIKeyHandler(
 }
 
 type createAPIKeyRequest struct {
-	Label string `json:"label"` // optional human-readable identifier, e.g. "production"
+	MerchantID string `json:"merchant_id" binding:"required"`
+	Label      string `json:"label"` // optional human-readable identifier, e.g. "production"
 }
 
-// Create issues a new service-level API key + secret.
-// POST /api-keys
+// Create issues a new merchant-scoped API key + secret.
+// POST /api-keys  (public — used to bootstrap the first key for a merchant)
 func (h *APIKeyHandler) Create(c *gin.Context) {
 	var req createAPIKeyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -38,19 +39,20 @@ func (h *APIKeyHandler) Create(c *gin.Context) {
 		return
 	}
 
-	result, err := h.create.Execute(c.Request.Context(), req.Label)
+	result, err := h.create.Execute(c.Request.Context(), req.MerchantID, req.Label)
 	if err != nil {
-		h.log.Error("create api key failed", "error", err)
+		h.log.Error("create api key failed", "merchant_id", req.MerchantID, "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	h.log.Info("api key created", "key_id", result.ID, "label", result.Label)
+	h.log.Info("api key created", "key_id", result.ID, "merchant_id", result.MerchantID, "label", result.Label)
 	c.JSON(http.StatusCreated, gin.H{
-		"key":    result.Key,
-		"secret": result.Secret,
-		"label":  result.Label,
-		"note":   "Store the secret securely — it will not be shown again.",
+		"key":         result.Key,
+		"secret":      result.Secret,
+		"label":       result.Label,
+		"merchant_id": result.MerchantID,
+		"note":        "Store the secret securely — it will not be shown again.",
 	})
 }
 

@@ -63,6 +63,7 @@ func main() {
 
 	stripeClient := stripe.NewStripeClient(cfg.StripeKey)
 
+	merchantRepo := postgres.NewMerchantRepository(pool)
 	customerRepo := postgres.NewCustomerRepository(pool)
 	invoiceRepo := postgres.NewInvoiceRepository(pool)
 	paymentRepo := postgres.NewPaymentRepository(pool)
@@ -81,6 +82,7 @@ func main() {
 		logger.Info("SMTP not configured — email sending disabled")
 	}
 
+	createMerchantUC := usecase.NewCreateMerchantUsecase(merchantRepo)
 	createCustomerUC := usecase.NewCreateCustomerUsecase(customerRepo)
 	createInvoiceUC := usecase.NewCreateInvoiceUsecase(invoiceRepo)
 	sendInvoiceUC := usecase.NewSendInvoiceUsecase(invoiceRepo, customerRepo, emailSender)
@@ -97,6 +99,7 @@ func main() {
 	)
 
 	// --- HTTP server ---
+	merchantHandler := httpdelivery.NewMerchantHandler(createMerchantUC, logger)
 	customerHandler := httpdelivery.NewCustomerHandler(createCustomerUC, logger)
 	invoiceHandler := httpdelivery.NewInvoiceHandler(createInvoiceUC, sendInvoiceUC, logger)
 	paymentHandler := httpdelivery.NewPaymentHandler(processPaymentUC, logger)
@@ -111,7 +114,8 @@ func main() {
 		MaxAge:           12 * time.Hour,
 	}))
 
-	// Public — issue API keys only; no auth required to bootstrap a new key
+	// Public — bootstrap endpoints; no auth required
+	r.POST("/merchants", merchantHandler.Create)
 	r.POST("/api-keys", apiKeyHandler.Create)
 
 	// Protected — all business routes require valid API key + HMAC signature

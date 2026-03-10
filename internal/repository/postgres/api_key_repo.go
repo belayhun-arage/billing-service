@@ -19,9 +19,9 @@ func NewAPIKeyRepository(db *pgxpool.Pool) *APIKeyRepository {
 
 func (r *APIKeyRepository) Create(ctx context.Context, k *domain.APIKey) error {
 	_, err := r.db.Exec(ctx, `
-		INSERT INTO api_keys (id, key, secret, label, created_at)
-		VALUES ($1, $2, $3, $4, $5)
-	`, k.ID, k.Key, k.Secret, k.Label, k.CreatedAt)
+		INSERT INTO api_keys (id, merchant_id, key, secret, label, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6)
+	`, k.ID, k.MerchantID, k.Key, k.Secret, k.Label, k.CreatedAt)
 	if err != nil {
 		return fmt.Errorf("create api key: %w", err)
 	}
@@ -31,10 +31,10 @@ func (r *APIKeyRepository) Create(ctx context.Context, k *domain.APIKey) error {
 func (r *APIKeyRepository) GetByKey(ctx context.Context, key string) (*domain.APIKey, error) {
 	var k domain.APIKey
 	err := r.db.QueryRow(ctx, `
-		SELECT id, key, secret, label, created_at, revoked_at
+		SELECT id, merchant_id, key, secret, label, created_at, revoked_at
 		FROM api_keys
 		WHERE key = $1
-	`, key).Scan(&k.ID, &k.Key, &k.Secret, &k.Label, &k.CreatedAt, &k.RevokedAt)
+	`, key).Scan(&k.ID, &k.MerchantID, &k.Key, &k.Secret, &k.Label, &k.CreatedAt, &k.RevokedAt)
 	if err != nil {
 		return nil, fmt.Errorf("get api key: %w", err)
 	}

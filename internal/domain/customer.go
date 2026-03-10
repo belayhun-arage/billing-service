@@ -11,6 +11,7 @@ import (
 
 type Customer struct {
 	ID               string
+	MerchantID       string
 	Name             string
 	Email            string
 	StripeCustomerID string // Stripe Customer ID (set after Stripe registration)
@@ -18,7 +19,10 @@ type Customer struct {
 }
 
 // NewCustomer validates inputs and returns a Customer ready to persist.
-func NewCustomer(name, email string) (*Customer, error) {
+func NewCustomer(merchantID, name, email string) (*Customer, error) {
+	if merchantID == "" {
+		return nil, errors.New("merchant_id is required")
+	}
 	if strings.TrimSpace(name) == "" {
 		return nil, errors.New("customer name is required")
 	}
@@ -26,10 +30,11 @@ func NewCustomer(name, email string) (*Customer, error) {
 		return nil, errors.New("invalid email address")
 	}
 	return &Customer{
-		ID:        uuid.New().String(),
-		Name:      strings.TrimSpace(name),
-		Email:     strings.ToLower(strings.TrimSpace(email)),
-		CreatedAt: time.Now(),
+		ID:         uuid.New().String(),
+		MerchantID: merchantID,
+		Name:       strings.TrimSpace(name),
+		Email:      strings.ToLower(strings.TrimSpace(email)),
+		CreatedAt:  time.Now(),
 	}, nil
 }
 

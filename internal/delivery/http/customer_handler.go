@@ -24,21 +24,27 @@ type CreateCustomerRequest struct {
 }
 
 func (h *CustomerHandler) CreateCustomer(c *gin.Context) {
+	merchantID := c.GetString("merchant_id")
+	if merchantID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing merchant identity"})
+		return
+	}
+
 	var req CreateCustomerRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	h.log.Info("creating customer", "email", req.Email)
+	h.log.Info("creating customer", "merchant_id", merchantID, "email", req.Email)
 
-	customer, err := h.usecase.Execute(c.Request.Context(), req.Name, req.Email)
+	customer, err := h.usecase.Execute(c.Request.Context(), merchantID, req.Name, req.Email)
 	if err != nil {
-		h.log.Error("create customer failed", "email", req.Email, "error", err)
+		h.log.Error("create customer failed", "merchant_id", merchantID, "email", req.Email, "error", err)
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
 		return
 	}
 
-	h.log.Info("customer created", "customer_id", customer.ID)
+	h.log.Info("customer created", "merchant_id", merchantID, "customer_id", customer.ID)
 	c.JSON(http.StatusCreated, customer)
 }

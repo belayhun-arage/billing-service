@@ -7,11 +7,11 @@ import (
 )
 
 // MockCustomerRepository satisfies both domain.CustomerRepository and the
-// extended interface required by CreateCustomerUsecase (adds ExistsByEmail).
+// extended interface required by CreateCustomerUsecase.
 type MockCustomerRepository struct {
-	CreateFn        func(ctx context.Context, c *domain.Customer) error
-	GetByIDFn       func(ctx context.Context, id string) (*domain.Customer, error)
-	ExistsByEmailFn func(ctx context.Context, email string) (bool, error)
+	CreateFn                  func(ctx context.Context, c *domain.Customer) error
+	GetByIDFn                 func(ctx context.Context, id string) (*domain.Customer, error)
+	ExistsByEmailForMerchantFn func(ctx context.Context, merchantID, email string) (bool, error)
 }
 
 func (m *MockCustomerRepository) Create(ctx context.Context, c *domain.Customer) error {
@@ -28,9 +28,9 @@ func (m *MockCustomerRepository) GetByID(ctx context.Context, id string) (*domai
 	return nil, nil
 }
 
-func (m *MockCustomerRepository) ExistsByEmail(ctx context.Context, email string) (bool, error) {
-	if m.ExistsByEmailFn != nil {
-		return m.ExistsByEmailFn(ctx, email)
+func (m *MockCustomerRepository) ExistsByEmailForMerchant(ctx context.Context, merchantID, email string) (bool, error) {
+	if m.ExistsByEmailForMerchantFn != nil {
+		return m.ExistsByEmailForMerchantFn(ctx, merchantID, email)
 	}
 	return false, nil
 }

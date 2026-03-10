@@ -20,9 +20,9 @@ func NewCustomerRepository(db *pgxpool.Pool) *CustomerRepository {
 
 func (r *CustomerRepository) Create(ctx context.Context, customer *domain.Customer) error {
 	_, err := r.db.Exec(ctx, `
-		INSERT INTO customers (id, name, email, created_at)
-		VALUES ($1, $2, $3, $4)
-	`, customer.ID, customer.Name, customer.Email, customer.CreatedAt)
+		INSERT INTO customers (id, merchant_id, name, email, created_at)
+		VALUES ($1, $2, $3, $4, $5)
+	`, customer.ID, customer.MerchantID, customer.Name, customer.Email, customer.CreatedAt)
 	if err != nil {
 		return fmt.Errorf("create customer: %w", err)
 	}
@@ -55,10 +55,11 @@ func (r *CustomerRepository) GetByEmail(ctx context.Context, email string) (*dom
 	return &c, nil
 }
 
-func (r *CustomerRepository) ExistsByEmail(ctx context.Context, email string) (bool, error) {
+func (r *CustomerRepository) ExistsByEmailForMerchant(ctx context.Context, merchantID, email string) (bool, error) {
 	var exists bool
 	err := r.db.QueryRow(ctx,
-		`SELECT EXISTS(SELECT 1 FROM customers WHERE email = $1)`, email,
+		`SELECT EXISTS(SELECT 1 FROM customers WHERE merchant_id = $1 AND email = $2)`,
+		merchantID, email,
 	).Scan(&exists)
 	if err != nil {
 		return false, fmt.Errorf("check email exists: %w", err)
